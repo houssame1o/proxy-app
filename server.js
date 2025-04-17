@@ -1,54 +1,65 @@
-// 🔁 Node.js Proxy Server for disguising Kick.com stream as Facebook
-
+// ✅ server.js (updated to rewrite .m3u8 and proxy chunks)
 const express = require('express');
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Use native fetch for Node.js >=18
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-// Serve static site (public/index.html)
+// Serve frontend
 app.use(express.static('public'));
 
-// 🔗 Actual Kick.com or HLS Stream Source (can test with a public one)
-const KICK_STREAM_URL = 'https://euc13-0.playlist.live-video.net/v1/playlist/CugFzTP3lbMK4N5U9oE4uhl0BN5mhQnhMZF_pwIHCy_YRLOKQOKZyiGUS3BQYpEitN4edd2HxPFGd-kXyRwaUWzThQBUwnJq2dnKTI7gtKgo7eyMc0fHHN6ejPAmgvd0n1B_OodJsvmzT974JuyNW4gr96mHvqRJohKqcsTh9TCO0ev7k7DK5dEIDK4_ab4L83MMFSowltHU1y1bcEU_vsEL_DP7OE4wsumyUVAtUJ7dTbLHTeb5Zbma68flGDqi5SAn-0EWnJ5Yvtf-NmTnW8MUpe86jOr_ePZ7tVeAOHze0HAwj9bFpjw-vpm37qQrSNCrCSiS1qQKEazsvlUyighBphn_mKc8zFLVAs7IkTjGkfWHVtRz6F1cpviPlJ622sPLLnSPx30kmM1Tp4zlwzmjVxU7wK3PGnkzEcgLYlQ5al-JuSHy8oerXv_PYrgYwqsfW5OSUgkzYqeKW8NnY2AWfmxdnKDR3KyOmEfOqZRDCY_-4qqs2h3C4_5SimNySfo90xOAONULRIVwW-nxdL2MWEu2jKrqEXBEY9u5MNgidMxwTtKvVlMWHmkkiTxl2e_Ft8iLqf2Gsrh-UHk0uRGEU8z5tShM5YKXlSo4SnHpfqf6CxGpCuAR2BTGxLNnLWp-DNNR1shGW71KDJsK9NGqSXpxBaM7_HsRtSiVFWS0kwdcsRH_sOW_06w1_3R5t8hWoiDVeMya0iWzecQOrsvL_Zl5AZ9_uukEje085WPlnKk-fnuo9qOjcki9USo_Yf4e5kQRQLsMFi3lVH8pswLq1H0aqc8K1dSkhgAtIQWcARdtTkLbHqBeFN2ZK3O8bSYk0iQ6WmXZ_LhJqheYKhBFkAfvYbI3SFLRIMW5tlLmjIeecMTJA6jQeV0PV1tkXn-JeoGXLhyIdY5rCvBgelUxWZUuD5VkJ_Dci1JcbG960G7aJxnRPPV4DGzvMwNBHjlmi4XVE875vkTwZMyzWxPlkYjjIamTNbOQGgyEhnUyxT9LOwJpOEogASoJZXUtd2VzdC0yMIgM.m3u8';
-// 🔁 Example real Kick stream: replace this once test works
+// Base Kick HLS URL
+const KICK_STREAM_BASE = 'https://euw11-0.playlist.live-video.net/v1/playlist/';
+const MASTER_PLAYLIST = `${KICK_STREAM_BASE}CukF1tIvQArPkIRBX0geCPOoQt4yFR3um29N7Upw4Efq-z-XGbt8Jy0A61BldqNj2tRxC7DmDfLzF9zvb6aLKpoyIAIVx2dhNvvb0KplGCrxFN-eNd-aH-vS6PQIcmzGaDLfOBzv2wBZKfvZJrvwNxkauiv4J_vs_3olmC6A9ybMl1tKqh_tY8VHBcwmEy3lX_h4jEYNjjJ5hBeJvwnOFG3LyEdty9ckjAA7_Z5OfMyj_XxgJuRkXMQHweYc-tjIDm0DgjWZ5D3fqbKzP1EyH2DMD6zsmDCWtUw3lvA_eLv0YAT7cBGestdEJPe20MWLVmdTzBn-IYitLXz-GPgesrDuIkVrl83zHlN09vFevToAGqxGsqkBxEVhNKXEIFj1HSwzn1UzWUoK87aFfIWNh5L6cpCa2GG1g6GKcAP0KIgcpb2Ea8PE6XmH_Sa7THlNlZVSorYMqvrFe7gzueVQS1rusuqqGZ90aVyJcet68uOBstHbmhOdreXeYoEM8wP_MNCLVtEknjDNrUVRGH7xiu43SV4fo099xD0Y-2QQkiLS_HeXLxx3369317AxJTg5jabO1HGlK0pE4ojCo5SNXlwrSLAvimx0bg--5DTlV8oFEKVVgIn67boit7o58ueUJGqRJxrJGrf6ertjmSzxwU_dsNFA51HmFiqVZkLXMeqw2fhE88ZOKL62pwSPpj29F6qG91EBueSYgDt7WzhkR7AGLIUUXONIDfxPX9gOvzlZN8Dx27756cuMDiAphTdLLycussB5hgZkde007H15EOhajGEhGNgu_wPSAGB7-aRNS7rVBosAXPF88QDZxTPyhcU-wRDPgSvDXIIilZAhXucxWdJismFEuyB84_459ftseBwuMtmTFqVbdn2OKL56aXoXcp5ZsNpZ-Y9z4goEYoNUhmbK7tf0KV6RwH34PEgHFVI8O2zZj3V9WCS7Pa3YF-ajPJP83URkEfrqGBeVYo6Puv3XisSsxohYNxoMRGLsY8xuEKH6MxAZIAEqCWV1LXdlc3QtMjCIDA.m3u8`; // Replace with real .m3u8
 
+// Proxy the main .m3u8 file and rewrite chunk paths
 app.get('/fb_stream', async (req, res) => {
   try {
-    const response = await fetch(KICK_STREAM_URL, {
+    const response = await fetch(MASTER_PLAYLIST, {
       headers: {
         'User-Agent': 'Facebook/320.0.0.0 Android',
         'Referer': 'https://facebook.com'
       }
     });
 
-    console.log("FETCH STATUS:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("FAILED RESPONSE BODY:", errorText);
-      return res.status(500).send('Error fetching stream');
-    }
-
     let playlist = await response.text();
 
-    // 📌 Fix relative URLs (replace .m3u8/.ts paths with full Kick URLs)
-    const baseUrl = KICK_STREAM_URL.substring(0, KICK_STREAM_URL.lastIndexOf('/') + 1);
-    playlist = playlist.replace(/^(?!#)(.*\.m3u8|.*\.ts)$/gm, (match) => {
-      if (match.startsWith("http")) return match;
-      return baseUrl + match;
+    // Rewrite chunk URLs to be proxied from this server
+    playlist = playlist.replace(/^(?!#)(.*\.ts|.*\.m3u8)$/gm, (line) => {
+      if (line.startsWith('http')) return line;
+      return `/proxy_chunk/${line}`;
     });
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
     res.send(playlist);
-
   } catch (err) {
-    console.error('Stream Error:', err);
-    res.status(500).send('Server Error');
+    console.error('M3U8 Proxy Error:', err);
+    res.status(500).send('Error fetching stream');
+  }
+});
+
+// Proxy individual .ts and .m3u8 chunks
+app.get('/proxy_chunk/:chunkName', async (req, res) => {
+  const chunk = req.params.chunkName;
+  const chunkUrl = `${KICK_STREAM_BASE}${chunk}`;
+
+  try {
+    const response = await fetch(chunkUrl, {
+      headers: {
+        'User-Agent': 'Facebook/320.0.0.0 Android',
+        'Referer': 'https://facebook.com'
+      }
+    });
+
+    if (!response.ok) throw new Error(`Chunk fetch failed: ${response.status}`);
+
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+    response.body.pipe(res);
+  } catch (err) {
+    console.error('Chunk Proxy Error:', err);
+    res.status(500).send('Error fetching chunk');
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Proxy server running on port ${PORT}`);
+  console.log(`🚀 Proxy server running at http://localhost:${PORT}`);
 });
